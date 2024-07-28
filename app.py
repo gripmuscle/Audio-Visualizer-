@@ -12,10 +12,19 @@ from io import BytesIO
 
 # Function to read audio file and process it
 def read_audio(audio, seek=None, duration=None):
-    import soundfile as sf
     audio_file = BytesIO(audio.read())
-    wav, sr = sf.read(audio_file, start=seek, duration=duration)
-    return wav, sr
+    
+    # Read the audio file without duration
+    data, samplerate = sf.read(audio_file, start=seek)
+    
+    # If duration is specified, slice the audio data accordingly
+    if duration is not None:
+        # Calculate the number of samples to keep
+        num_samples = int(duration * samplerate)
+        # Slice the data array to the desired duration
+        data = data[:num_samples]
+    
+    return data, samplerate
 
 # Function to compute envelope
 def envelope(wav, window, stride):
