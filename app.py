@@ -32,7 +32,7 @@ def calculate_audio_envelope(audio):
         return None
 
 # Function to create video from waveform
-def create_waveform_video(envelope, output_path, frame_rate=24, width=1280, height=720, color='#FF0000'):
+def create_waveform_video(envelope, output_path, frame_rate=24, width=1280, height=720, color='#FF0000', background_color='white', transparent_bg=False, rounded_bars=False, radius=0):
     try:
         fourcc = cv2.VideoWriter_fourcc(*'vp80')
         out = cv2.VideoWriter(output_path, fourcc, frame_rate, (width, height))
@@ -44,7 +44,11 @@ def create_waveform_video(envelope, output_path, frame_rate=24, width=1280, heig
             plt.fill_between(np.arange(len(envelope[:i])), envelope[:i], color=color)
             plt.xlim(0, len(envelope))
             plt.ylim(0, np.max(envelope))
-            plt.gca().set_facecolor('white')
+            plt.gca().set_facecolor(background_color)
+            if transparent_bg:
+                plt.gca().patch.set_alpha(0)
+            if rounded_bars:
+                plt.gca().patch.set_radius(radius)
             plt.title('Audio Envelope')
             plt.xlabel('Samples')
             plt.ylabel('Amplitude')
@@ -89,7 +93,7 @@ if uploaded_audio:
 
             # Create video from waveform
             output_path = "waveform_video.webm"
-            create_waveform_video(envelope, output_path, frame_rate=24, color=waveform_color)
+            create_waveform_video(envelope, output_path, frame_rate=24, color=waveform_color, background_color=background_color, transparent_bg=transparent_bg, rounded_bars=rounded_bars, radius=radius)
             
             # Provide download link
             with open(output_path, "rb") as f:
