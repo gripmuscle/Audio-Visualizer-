@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.poetry]
+name = "Audio Visualizer"  # Replace with your project name
+version = "1.0"
+description = "A Streamlit app for video processing."
+authors = ["Saboor Hassan"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+streamlit = "^1.17.0"
+moviepy = "^1.0.3"
+numpy = "^1.24.2"
+tqdm = "^4.65.0"
+cairocffi = "^1.6.0"
+soundfile = "^0.12.1"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.3.2"  # Optional: Add any development dependencies if needed
