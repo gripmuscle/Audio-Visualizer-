@@ -1,4 +1,5 @@
 poetry
+matplotlib
 streamlit==1.17.0
 moviepy==1.0.3
 numpy==1.24.2
