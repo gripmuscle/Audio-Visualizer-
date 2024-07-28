@@ -50,9 +50,10 @@ def create_waveform_video(envelope, output_path, frame_rate=24, width=500, heigh
 
             if transparent_bg:
                 fig.patch.set_alpha(0)  # Set figure background to transparent
-            
-            # Save the plot as an image
-            plt.savefig('temp_frame.png', bbox_inches='tight', pad_inches=0)
+
+            # Ensure the figure is properly rendered before saving
+            plt.tight_layout()
+            plt.savefig('temp_frame.png', bbox_inches='tight', pad_inches=0, dpi=100)
             plt.close(fig)
             
             # Read the saved image and add it to the video
