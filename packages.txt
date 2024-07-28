@@ -1,4 +1,5 @@
 build-essential
+ffmpeg
 pkg-config
 libcairo2-dev
 libgdk-pixbuf2.0-dev
