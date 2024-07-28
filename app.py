@@ -1,6 +1,7 @@
 import os
 import tempfile
 import math
+import soundfile as sf
 import numpy as np
 import cairo
 import subprocess as sp
