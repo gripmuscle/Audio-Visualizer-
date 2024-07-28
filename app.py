@@ -31,45 +31,42 @@ def calculate_audio_envelope(audio):
         st.error(f"Error calculating audio envelope: {e}")
         return None
 
-# Function to generate frames from video
-def generate_frames(video_path, frame_rate=24):
+# Function to create video from waveform
+def create_waveform_video(envelope, output_path, frame_rate=24, width=1280, height=720, color='#FF0000'):
     try:
-        frames = []
-        cap = cv2.VideoCapture(video_path)
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        with st.spinner("Extracting frames..."):
-            for _ in range(total_frames):
-                success, frame = cap.read()
-                if not success:
-                    break
-                frames.append(frame)
-        cap.release()
-        return frames
-    except Exception as e:
-        st.error(f"Error generating frames from video: {e}")
-        return []
-
-# Function to create video from frames
-def create_video(frames, output_path, frame_rate=24):
-    try:
-        height, width, _ = frames[0].shape
         fourcc = cv2.VideoWriter_fourcc(*'vp80')
         out = cv2.VideoWriter(output_path, fourcc, frame_rate, (width, height))
-        with st.spinner("Creating video..."):
-            for frame in frames:
-                out.write(frame)
+        
+        # Plot the waveform and write each frame to the video
+        plt.figure(figsize=(width/100, height/100), dpi=100)
+        for i in range(len(envelope)):
+            plt.clf()
+            plt.fill_between(np.arange(len(envelope[:i])), envelope[:i], color=color)
+            plt.xlim(0, len(envelope))
+            plt.ylim(0, np.max(envelope))
+            plt.gca().set_facecolor('white')
+            plt.title('Audio Envelope')
+            plt.xlabel('Samples')
+            plt.ylabel('Amplitude')
+            
+            # Save plot as image
+            plt.savefig('temp_frame.png', bbox_inches='tight')
+            frame = cv2.imread('temp_frame.png')
+            frame = cv2.resize(frame, (width, height))
+            out.write(frame)
+        
         out.release()
+        st.write("Video created successfully.")
     except Exception as e:
         st.error(f"Error creating video: {e}")
 
 # Streamlit app
-st.title("Audio and Video Processing")
+st.title("Audio Waveform Video Generator")
 
-# Upload video and audio
-uploaded_video = st.file_uploader("Upload a video", type=["mp4", "avi"])
+# Upload audio
 uploaded_audio = st.file_uploader("Upload an audio file", type=["wav", "mp3"])
 
-if uploaded_video and uploaded_audio:
+if uploaded_audio:
     # Read and process audio
     audio = read_audio(uploaded_audio)
     if audio:
@@ -90,40 +87,12 @@ if uploaded_video and uploaded_audio:
                 else:
                     radius = 0
 
-            # Plot audio envelope
-            plt.figure(figsize=(10, 4))
-            plt.fill_between(np.arange(len(envelope)), envelope, color=waveform_color)
-            plt.gca().set_facecolor(background_color)
-            if transparent_bg:
-                plt.gca().patch.set_alpha(0)
-            if rounded_bars:
-                plt.gca().patch.set_radius(radius)
-            plt.title('Audio Envelope')
-            plt.xlabel('Samples')
-            plt.ylabel('Amplitude')
-            st.pyplot(plt)
-
-    # Video processing
-    with st.sidebar:
-        st.header("Video Processing")
-        video_resolution = st.selectbox(
-            "Select Video Resolution",
-            ["500x200", "640x480", "1280x720", "1920x1080"],
-            index=0
-        )
-        resolution_width, resolution_height = map(int, video_resolution.split('x'))
-        frame_radius = st.slider("Frame Radius", 0, 20, 5)
-
-    frames = generate_frames(uploaded_video)
-    if frames:
-        st.write("Frames extracted successfully.")
-        
-        # Create output video
-        output_path = "output_video.webm"
-        create_video(frames, output_path, frame_rate=24)
-        
-        # Provide download link
-        with open(output_path, "rb") as f:
-            st.download_button("Download the generated video", f, file_name="output_video.webm")
+            # Create video from waveform
+            output_path = "waveform_video.webm"
+            create_waveform_video(envelope, output_path, frame_rate=24, color=waveform_color)
+            
+            # Provide download link
+            with open(output_path, "rb") as f:
+                st.download_button("Download the generated video", f, file_name="waveform_video.webm")
 else:
-    st.warning("Please upload both a video and an audio file.")
+    st.warning("Please upload an audio file.")
