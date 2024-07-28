@@ -11,7 +11,10 @@ import shutil
 from moviepy.editor import VideoFileClip
 from io import BytesIO
 
-# Function to read audio file and process it
+def sigmoid(x):
+    """Compute the sigmoid function."""
+    return 1 / (1 + np.exp(-x))
+
 def read_audio(audio, seek=None, duration=None):
     audio_file = BytesIO(audio.read())
     
@@ -27,7 +30,6 @@ def read_audio(audio, seek=None, duration=None):
     
     return data, samplerate
 
-# Function to compute envelope
 def envelope(wav, window, stride):
     frames = (len(wav) - window) // stride + 1
     env = np.zeros(frames)
@@ -37,7 +39,6 @@ def envelope(wav, window, stride):
         env[i] = np.max(np.abs(wav[start:end]))
     return env
 
-# Function to create the frames with transparency and rounded corners
 def draw_env(envs, out, fg_colors, bg_color, size, radius):
     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, *size)
     ctx = cairo.Context(surface)
@@ -82,7 +83,6 @@ def draw_env(envs, out, fg_colors, bg_color, size, radius):
 
     surface.write_to_png(out)
 
-# Main visualization function
 def visualize(audio,
               tmp,
               out,
