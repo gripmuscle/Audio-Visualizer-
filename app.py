@@ -37,8 +37,8 @@ def create_waveform_video(envelope, output_path, frame_rate=24, width=500, heigh
         out = cv2.VideoWriter(output_path, fourcc, frame_rate, (width, height))
         
         # Plot the waveform and write each frame to the video
-        plt.figure(figsize=(width/100, height/100), dpi=100)
         for i in range(len(envelope)):
+            plt.figure(figsize=(width / 100, height / 100), dpi=100)
             plt.clf()
             plt.fill_between(np.arange(len(envelope[:i])), envelope[:i], color=color, linewidth=bar_thickness)
             plt.xlim(0, len(envelope))
@@ -49,9 +49,10 @@ def create_waveform_video(envelope, output_path, frame_rate=24, width=500, heigh
             plt.title('Audio Envelope')
             plt.xlabel('Samples')
             plt.ylabel('Amplitude')
-            
+
             # Save plot as image
             plt.savefig('temp_frame.png', bbox_inches='tight', pad_inches=0)
+            plt.close()
             frame = cv2.imread('temp_frame.png')
             frame = cv2.resize(frame, (width, height))
             out.write(frame)
