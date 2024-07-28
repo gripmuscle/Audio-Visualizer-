@@ -57,6 +57,11 @@ def create_waveform_video(envelope, output_path, frame_rate=24, width=500, heigh
             
             # Read the saved image and add it to the video
             frame = cv2.imread('temp_frame.png')
+            
+            if frame is None:
+                st.error("Error reading the saved frame image.")
+                return
+            
             frame = cv2.resize(frame, (width, height))
             out.write(frame)
         
