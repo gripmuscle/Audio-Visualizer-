@@ -1,0 +1,6 @@
+streamlit
+moviepy
+numpy
+tqdm
+cairo
+soundfile
