@@ -1,225 +1,129 @@
-import os
-import tempfile
-import math
-import soundfile as sf
-import numpy as np
-import cairo
-import subprocess as sp
 import streamlit as st
-import shutil
-import logging
-from io import BytesIO
+import numpy as np
+import matplotlib.pyplot as plt
+import cv2
+from pydub import AudioSegment
+from pydub.silence import split_on_silence
+from PIL import Image
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-def sigmoid(x):
-    """Compute the sigmoid function."""
-    return 1 / (1 + np.exp(-x))
-
-@st.cache_data
-def read_audio(audio, seek=None, duration=None):
-    audio_file = BytesIO(audio.read())
+# Function to read audio and ensure it's stereo
+def read_audio(file_path):
     try:
-        data, samplerate = sf.read(audio_file, start=seek)
-        if duration is not None:
-            num_samples = int(duration * samplerate)
-            data = data[:num_samples]
-        return data, samplerate
-    except (IOError, ValueError) as e:
-        logging.error(f"Error reading audio: {e}")
-        st.error(f"Error reading audio: {e}")
-        return None, None
+        audio = AudioSegment.from_file(file_path)
+        
+        # Check if the audio is mono
+        if audio.channels == 1:
+            st.warning("Audio is mono. Converting to stereo.")
+            audio = audio.set_channels(2)
+        
+        return audio
+    except Exception as e:
+        st.error(f"Error reading audio file: {e}")
+        return None
 
-@st.cache_data
-def envelope(wav, window, stride):
-    frames = (len(wav) - window) // stride + 1
-    env = np.zeros(frames)
-    for i in range(frames):
-        start = i * stride
-        end = start + window
-        env[i] = np.max(np.abs(wav[start:end]))
-    return env
-
-def draw_env(envs, out, fg_colors, bg_color, size, radius):
-    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, *size)
-    ctx = cairo.Context(surface)
-    ctx.scale(*size)
-    
-    ctx.set_source_rgba(*bg_color, 0)  # Transparent background
-    ctx.rectangle(0, 0, 1, 1)
-    ctx.fill()
-
-    K = len(envs)
-    T = len(envs[0])
-    pad_ratio = 0.1
-    width = 1. / (T * (1 + 2 * pad_ratio))
-    pad = pad_ratio * width
-    delta = 2 * pad + width
-
-    ctx.set_line_width(width)
-    for step in range(T):
-        for i in range(K):
-            half = 0.5 * envs[i][step]
-            half /= K
-            midrule = (1 + 2 * i) / (2 * K)
-            ctx.set_source_rgb(*fg_colors[i])
-            ctx.move_to(pad + step * delta, midrule - half)
-            ctx.line_to(pad + step * delta, midrule)
-            ctx.stroke()
-            ctx.set_source_rgba(*fg_colors[i], 0.8)
-            ctx.move_to(pad + step * delta, midrule)
-            ctx.line_to(pad + step * delta, midrule + 0.9 * half)
-            ctx.stroke()
-
-    ctx.arc(0, 0, radius, 0, 2 * np.pi)
-    ctx.fill()
-    ctx.arc(size[0], 0, radius, 0, 2 * np.pi)
-    ctx.fill()
-    ctx.arc(0, size[1], radius, 0, 2 * np.pi)
-    ctx.fill()
-    ctx.arc(size[0], size[1], radius, 0, 2 * np.pi)
-    ctx.fill()
-
-    surface.write_to_png(out)
-
-def visualize(audio,
-              tmp,
-              out,
-              seek=None,
-              duration=None,
-              rate=60,
-              bars=50,
-              speed=4,
-              time=0.4,
-              oversample=3,
-              fg_color=(.2, .2, .2),
-              fg_color2=(.5, .3, .6),
-              bg_color=(0, 0, 0),
-              size=(400, 400),
-              stereo=False,
-              radius=5):
-    wav, sr = read_audio(audio, seek=seek, duration=duration)
-    if wav is None:
-        return
-
-    wavs = []
-
-    if len(wav.shape) > 1 and wav.shape[0] == 2:
-        if stereo:
-            wavs.append(wav[0])
-            wavs.append(wav[1])
-        else:
-            wav = wav.mean(0)
-            wavs.append(wav)
-    else:
-        if stereo:
-            wav = np.stack([wav, wav], axis=0)
-            wavs.append(wav[0])
-            wavs.append(wav[1])
-        else:
-            wavs.append(wav)
-
-    for i, wav in enumerate(wavs):
-        wavs[i] = wav / wav.std()
-
-    window = int(sr * time / bars)
-    stride = int(window / oversample)
-    envs = []
-    for wav in wavs:
-        env = envelope(wav, window, stride)
-        env = np.pad(env, (bars // 2, 2 * bars))
-        envs.append(env)
-
-    duration = len(wavs[0]) / sr
-    frames = int(rate * duration)
-    smooth = np.hanning(bars)
-
-    if not os.path.exists(tmp):
-        os.makedirs(tmp)
-
-    logging.info("Generating the frames...")
-    progress_bar = st.progress(0)
-
-    for idx in range(frames):
-        pos = (((idx / rate)) * sr) / stride / bars
-        off = int(pos)
-        loc = pos - off
-        denvs = []
-        for env in envs:
-            env1 = env[off * bars:(off + 1) * bars]
-            env2 = env[(off + 1) * bars:(off + 2) * bars]
-
-            maxvol = math.log10(1e-4 + env2.max()) * 10
-            speedup = np.clip(np.interp(-6, [0, 2], [0.5, 2], left=0.5, right=2), 0.5, 2)
-            w = sigmoid(speed * speedup * (loc - 0.5))
-            denv = (1 - w) * env1 + w * env2
-            denv *= smooth
-            denvs.append(denv)
-        draw_env(denvs, os.path.join(tmp, f"{idx:06d}.png"), (fg_color, fg_color2), bg_color, size, radius)
-        progress_bar.progress((idx + 1) / frames)
-
-    logging.info("Encoding the animation video...")
-    audio_cmd = []
-    if seek is not None:
-        audio_cmd += ["-ss", str(seek)]
-    audio_cmd += ["-i", audio.name]
-    if duration is not None:
-        audio_cmd += ["-t", str(duration)]
-
+# Function to calculate audio envelope
+def calculate_audio_envelope(audio):
     try:
-        # Construct command to run ffmpeg
-        ffmpeg_cmd = [
-            "ffmpeg", "-y", "-loglevel", "error", "-r",
-            str(rate), "-f", "image2", "-s", f"{size[0]}x{size[1]}", "-i", os.path.join(tmp, "%06d.png")
-        ] + audio_cmd + [
-            "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "30", "-pix_fmt", "yuva420p",
-            out
-        ]
+        samples = np.array(audio.get_array_of_samples())
+        envelope = np.abs(samples)  # Simplistic envelope calculation
+        return envelope
+    except Exception as e:
+        st.error(f"Error calculating audio envelope: {e}")
+        return None
 
-        # Run the ffmpeg command
-        result = sp.run(ffmpeg_cmd, check=True, cwd=tmp, stdout=sp.PIPE, stderr=sp.PIPE)
+# Function to generate frames from video
+def generate_frames(video_path, frame_rate=24):
+    try:
+        frames = []
+        cap = cv2.VideoCapture(video_path)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        with st.spinner("Extracting frames..."):
+            for _ in range(total_frames):
+                success, frame = cap.read()
+                if not success:
+                    break
+                frames.append(frame)
+        cap.release()
+        return frames
+    except Exception as e:
+        st.error(f"Error generating frames from video: {e}")
+        return []
 
-        # Log stdout and stderr from ffmpeg
-        logging.info(result.stdout.decode())
-        logging.error(result.stderr.decode())
+# Function to create video from frames
+def create_video(frames, output_path, frame_rate=24):
+    try:
+        height, width, _ = frames[0].shape
+        fourcc = cv2.VideoWriter_fourcc(*'vp80')
+        out = cv2.VideoWriter(output_path, fourcc, frame_rate, (width, height))
+        with st.spinner("Creating video..."):
+            for frame in frames:
+                out.write(frame)
+        out.release()
+    except Exception as e:
+        st.error(f"Error creating video: {e}")
 
-        logging.info("Video encoding completed successfully.")
-    except sp.CalledProcessError as e:
-        logging.error(f"Error during video encoding: {e}")
-        logging.error(e.stderr.decode())
-        st.error(f"Error during video encoding: {e}")
+# Streamlit app
+st.title("Audio and Video Processing")
 
-    finally:
-        # Ensure temporary directory is cleaned up
-        if os.path.exists(tmp):
-            shutil.rmtree(tmp)
-
-# Streamlit UI
-st.title("Video Visualizer with Transparency")
-
+# Upload video and audio
+uploaded_video = st.file_uploader("Upload a video", type=["mp4", "avi"])
 uploaded_audio = st.file_uploader("Upload an audio file", type=["wav", "mp3"])
 
-if uploaded_audio:
-    with st.spinner("Processing..."):
-        tmp_dir = tempfile.mkdtemp()
-        output_video_path = os.path.join(tmp_dir, "output_video.webm")
+if uploaded_video and uploaded_audio:
+    # Read and process audio
+    audio = read_audio(uploaded_audio)
+    if audio:
+        envelope = calculate_audio_envelope(audio)
+        if envelope is not None:
+            st.write("Audio envelope calculated successfully.")
+            
+            # Customize waveform
+            with st.sidebar:
+                st.header("Waveform Customization")
+                waveform_color = st.color_picker("Waveform Bars Color", "#FF0000")
+                background_color = st.color_picker("Background Color", "#FFFFFF")
+                transparent_bg = st.checkbox("Transparent Background", value=False)
+                rounded_bars = st.checkbox("Rounded Bars", value=False)
+                
+                if rounded_bars:
+                    radius = st.slider("Radius of Bars", 0, 20, 5)
+                else:
+                    radius = 0
 
-        visualize(uploaded_audio,
-                  tmp_dir,
-                  output_video_path,
-                  rate=30,
-                  bars=40,
-                  speed=4,
-                  time=0.5,
-                  oversample=2,
-                  fg_color=(0.8, 0.5, 0.5),
-                  fg_color2=(0.5, 0.8, 0.5),
-                  bg_color=(0, 0, 0),
-                  size=(800, 600),
-                  stereo=True,
-                  radius=10)
+            # Plot audio envelope
+            plt.figure(figsize=(10, 4))
+            plt.fill_between(np.arange(len(envelope)), envelope, color=waveform_color)
+            plt.gca().set_facecolor(background_color)
+            if transparent_bg:
+                plt.gca().patch.set_alpha(0)
+            if rounded_bars:
+                plt.gca().patch.set_radius(radius)
+            plt.title('Audio Envelope')
+            plt.xlabel('Samples')
+            plt.ylabel('Amplitude')
+            st.pyplot(plt)
 
-        # Provide the download button for the generated video
-        with open(output_video_path, "rb") as f:
+    # Video processing
+    with st.sidebar:
+        st.header("Video Processing")
+        video_resolution = st.selectbox(
+            "Select Video Resolution",
+            ["500x200", "640x480", "1280x720", "1920x1080"],
+            index=0
+        )
+        resolution_width, resolution_height = map(int, video_resolution.split('x'))
+        frame_radius = st.slider("Frame Radius", 0, 20, 5)
+
+    frames = generate_frames(uploaded_video)
+    if frames:
+        st.write("Frames extracted successfully.")
+        
+        # Create output video
+        output_path = "output_video.webm"
+        create_video(frames, output_path, frame_rate=24)
+        
+        # Provide download link
+        with open(output_path, "rb") as f:
             st.download_button("Download the generated video", f, file_name="output_video.webm")
+else:
+    st.warning("Please upload both a video and an audio file.")
