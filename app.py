@@ -93,21 +93,15 @@ if uploaded_audio:
                     bar_thickness = 5
                 
                 frame_rate = st.slider("Frame Rate", 1, 60, 24)
-                resolution = st.selectbox(
-                    "Select Video Resolution",
-                    ["500x200", "640x480", "1280x720", "1920x1080"],
-                    index=0
-                )
-                resolution_width, resolution_height = map(int, resolution.split('x'))
-            
+
             # Create video from waveform
             output_path = "waveform_video.webm"
             create_waveform_video(
                 envelope, 
                 output_path, 
                 frame_rate=frame_rate, 
-                width=resolution_width, 
-                height=resolution_height, 
+                width=500, 
+                height=200, 
                 color=waveform_color, 
                 background_color=background_color, 
                 transparent_bg=transparent_bg, 
