@@ -153,7 +153,7 @@ def visualize(audio,
             env2 = env[(off + 1) * bars:(off + 2) * bars]
 
             maxvol = math.log10(1e-4 + env2.max()) * 10
-            speedup = np.clip(interpole(-6, 0.5, 0, 2, maxvol), 0.5, 2)
+            speedup = np.clip(np.interp(-6, [0, 2], [0.5, 2], left=0.5, right=2), 0.5, 2)
             w = sigmoid(speed * speedup * (loc - 0.5))
             denv = (1 - w) * env1 + w * env2
             denv *= smooth
