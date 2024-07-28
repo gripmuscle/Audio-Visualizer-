@@ -33,7 +33,8 @@ def calculate_audio_envelope(audio):
 # Function to create video from waveform
 def create_waveform_video(envelope, output_path, frame_rate=24, width=500, height=200, color='#FF0000', background_color='white', transparent_bg=False, rounded_bars=False, bar_thickness=5):
     try:
-        fourcc = cv2.VideoWriter_fourcc(*'vp80')
+        # Use XVID codec for AVI files
+        fourcc = cv2.VideoWriter_fourcc(*'XVID')
         out = cv2.VideoWriter(output_path, fourcc, frame_rate, (width, height))
         
         # Create a frame for each point in the envelope
@@ -102,7 +103,7 @@ if uploaded_audio:
                 frame_rate = st.slider("Frame Rate", 1, 60, 24)
 
             # Create video from waveform
-            output_path = "waveform_video.webm"
+            output_path = "waveform_video.avi"  # Use AVI format with XVID codec
             create_waveform_video(
                 envelope, 
                 output_path, 
@@ -118,6 +119,6 @@ if uploaded_audio:
             
             # Provide download link
             with open(output_path, "rb") as f:
-                st.download_button("Download the generated video", f, file_name="waveform_video.webm")
+                st.download_button("Download the generated video", f, file_name="waveform_video.avi")
 else:
     st.warning("Please upload an audio file.")
