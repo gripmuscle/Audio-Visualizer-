@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 from pydub import AudioSegment
-from pydub.silence import split_on_silence
 from PIL import Image
 
 # Function to read audio and ensure it's stereo
@@ -32,7 +31,7 @@ def calculate_audio_envelope(audio):
         return None
 
 # Function to create video from waveform
-def create_waveform_video(envelope, output_path, frame_rate=24, width=1280, height=720, color='#FF0000', background_color='white', transparent_bg=False, rounded_bars=False, radius=0):
+def create_waveform_video(envelope, output_path, frame_rate=24, width=500, height=200, color='#FF0000', background_color='white', transparent_bg=False, rounded_bars=False, bar_thickness=5):
     try:
         fourcc = cv2.VideoWriter_fourcc(*'vp80')
         out = cv2.VideoWriter(output_path, fourcc, frame_rate, (width, height))
@@ -41,20 +40,18 @@ def create_waveform_video(envelope, output_path, frame_rate=24, width=1280, heig
         plt.figure(figsize=(width/100, height/100), dpi=100)
         for i in range(len(envelope)):
             plt.clf()
-            plt.fill_between(np.arange(len(envelope[:i])), envelope[:i], color=color)
+            plt.fill_between(np.arange(len(envelope[:i])), envelope[:i], color=color, linewidth=bar_thickness)
             plt.xlim(0, len(envelope))
             plt.ylim(0, np.max(envelope))
             plt.gca().set_facecolor(background_color)
             if transparent_bg:
                 plt.gca().patch.set_alpha(0)
-            if rounded_bars:
-                plt.gca().patch.set_radius(radius)
             plt.title('Audio Envelope')
             plt.xlabel('Samples')
             plt.ylabel('Amplitude')
             
             # Save plot as image
-            plt.savefig('temp_frame.png', bbox_inches='tight')
+            plt.savefig('temp_frame.png', bbox_inches='tight', pad_inches=0)
             frame = cv2.imread('temp_frame.png')
             frame = cv2.resize(frame, (width, height))
             out.write(frame)
@@ -81,19 +78,38 @@ if uploaded_audio:
             # Customize waveform
             with st.sidebar:
                 st.header("Waveform Customization")
-                waveform_color = st.color_picker("Waveform Bars Color", "#FF0000")
+                waveform_color = st.color_picker("Waveform Color", "#FF0000")
                 background_color = st.color_picker("Background Color", "#FFFFFF")
                 transparent_bg = st.checkbox("Transparent Background", value=False)
                 rounded_bars = st.checkbox("Rounded Bars", value=False)
                 
                 if rounded_bars:
-                    radius = st.slider("Radius of Bars", 0, 20, 5)
+                    bar_thickness = st.slider("Bar Thickness", 1, 20, 5)
                 else:
-                    radius = 0
-
+                    bar_thickness = 5
+                
+                frame_rate = st.slider("Frame Rate", 1, 60, 24)
+                resolution = st.selectbox(
+                    "Select Video Resolution",
+                    ["500x200", "640x480", "1280x720", "1920x1080"],
+                    index=0
+                )
+                resolution_width, resolution_height = map(int, resolution.split('x'))
+            
             # Create video from waveform
             output_path = "waveform_video.webm"
-            create_waveform_video(envelope, output_path, frame_rate=24, color=waveform_color, background_color=background_color, transparent_bg=transparent_bg, rounded_bars=rounded_bars, radius=radius)
+            create_waveform_video(
+                envelope, 
+                output_path, 
+                frame_rate=frame_rate, 
+                width=resolution_width, 
+                height=resolution_height, 
+                color=waveform_color, 
+                background_color=background_color, 
+                transparent_bg=transparent_bg, 
+                rounded_bars=rounded_bars, 
+                bar_thickness=bar_thickness
+            )
             
             # Provide download link
             with open(output_path, "rb") as f:
