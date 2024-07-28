@@ -47,6 +47,7 @@ def create_waveform_video(envelope, output_path, frame_rate=24, width=500, heigh
             ax.set_title('Audio Envelope')
             ax.set_xlabel('Samples')
             ax.set_ylabel('Amplitude')
+            ax.set_aspect('auto')  # Ensure correct aspect ratio handling
 
             if transparent_bg:
                 fig.patch.set_alpha(0)  # Set figure background to transparent
