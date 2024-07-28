@@ -105,14 +105,24 @@ def visualize(audio,
     except (IOError, ValueError) as err:
         st.error(f"Error reading audio: {err}")
         return
+
     wavs = []
-    if stereo:
-        assert wav.shape[0] == 2, 'stereo requires stereo audio file'
-        wavs.append(wav[0])
-        wavs.append(wav[1])
+    
+    # Check if the audio is stereo or mono
+    if len(wav.shape) > 1 and wav.shape[0] == 2:
+        if stereo:
+            wavs.append(wav[0])
+            wavs.append(wav[1])
+        else:
+            wav = wav.mean(0)  # Convert stereo to mono
+            wavs.append(wav)
     else:
-        wav = wav.mean(0)
-        wavs.append(wav)
+        if stereo:
+            wav = np.stack([wav, wav], axis=0)  # Convert mono to stereo
+            wavs.append(wav[0])
+            wavs.append(wav[1])
+        else:
+            wavs.append(wav)
 
     for i, wav in enumerate(wavs):
         wavs[i] = wav / wav.std()
